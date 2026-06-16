@@ -322,7 +322,7 @@ function TypingDots() {
   );
 }
 
-function Message({ role, content, typing, image }) {
+function Message({ role, content, typing, images }) {
   const isUser = role === "user";
   return (
     <div className="msg-animate" style={{ display: "flex", flexDirection: isUser ? "row-reverse" : "row", gap: 12, alignItems: "flex-start", marginBottom: 6 }}>
@@ -330,7 +330,9 @@ function Message({ role, content, typing, image }) {
         {isUser ? "Eu" : <img src="/logo_lean_padrao_branco.png" alt="Lean" style={{ width: "65%", objectFit: "contain" }} />}
       </div>
       <div className={isUser ? "caramelo-gradient" : "glass-bubble-ai"} style={{ maxWidth: "82%", padding: "12px 16px", borderRadius: isUser ? "16px 4px 16px 16px" : "4px 16px 16px 16px", background: isUser ? "" : "rgba(255, 255, 255, 0.03)", border: isUser ? "none" : "1px solid rgba(255, 255, 255, 0.05)", fontSize: 14.5, lineHeight: 1.6, color: "#F0EDE8", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", display: "flex", flexDirection: "column", gap: 8, boxShadow: isUser ? "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 12px rgba(178,105,42,0.2)" : "inset 0 1px 0 rgba(255,255,255,0.02)" }}>
-        {image && <img src={image} alt="Anexo" style={{ maxWidth: "100%", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)" }} />}
+        {images && images.map((img, idx) => (
+          <img key={idx} src={img} alt={`Anexo ${idx+1}`} style={{ maxWidth: "100%", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)" }} />
+        ))}
         {typing ? <TypingDots /> : content}
       </div>
     </div>
@@ -340,7 +342,7 @@ function Message({ role, content, typing, image }) {
 export default function App() {
   const [messages, setMessages] = useState([{ role: "assistant", content: "Olá! Sou o assistente comercial do Lean.\n\nMe conta a situação do lead e eu te oriento sobre a melhor abordagem: como retomar um contato, contornar uma objeção de preço, reagir a um \"vou pensar\" — qualquer situação do atendimento comercial." }]);
   const [input, setInput] = useState("");
-  const [attachedImage, setAttachedImage] = useState(null);
+  const [attachedImages, setAttachedImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showChips, setShowChips] = useState(true);
   const messagesEndRef = useRef(null);
@@ -349,12 +351,12 @@ export default function App() {
   const conversationRef = useRef([]);
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
       const reader = new FileReader();
-      reader.onloadend = () => setAttachedImage(reader.result);
+      reader.onloadend = () => setAttachedImages(prev => [...prev, reader.result]);
       reader.readAsDataURL(file);
-    }
+    });
     e.target.value = "";
   };
 
@@ -366,10 +368,9 @@ export default function App() {
         const file = items[i].getAsFile();
         if (file) {
           const reader = new FileReader();
-          reader.onloadend = () => setAttachedImage(reader.result);
+          reader.onloadend = () => setAttachedImages(prev => [...prev, reader.result]);
           reader.readAsDataURL(file);
         }
-        break;
       }
     }
   };
@@ -411,25 +412,24 @@ export default function App() {
 
   const sendMessage = async (text) => {
     const msg = (text || input).trim();
-    if ((!msg && !attachedImage) || loading) return;
+    if ((!msg && attachedImages.length === 0) || loading) return;
     setInput("");
     setShowChips(false);
     setLoading(true);
 
-    let apiContent = msg;
-    if (attachedImage) {
-      const base64Data = attachedImage.split(',')[1];
-      const mimeType = attachedImage.match(/data:(.*?);base64/)[1];
-      apiContent = [
-        { type: "image", source: { type: "base64", media_type: mimeType, data: base64Data } }
-      ];
-      if (msg) apiContent.push({ type: "text", text: msg });
-    }
+    let apiContent = [];
+    attachedImages.forEach(img => {
+      const base64Data = img.split(',')[1];
+      const mimeType = img.match(/data:(.*?);base64/)[1];
+      apiContent.push({ type: "image", source: { type: "base64", media_type: mimeType, data: base64Data } });
+    });
+    if (msg) apiContent.push({ type: "text", text: msg });
+    if (apiContent.length === 0) apiContent = msg; // fallback
 
     const userMessage = { role: "user", content: apiContent };
     conversationRef.current = [...conversationRef.current, userMessage];
-    setMessages((prev) => [...prev, { role: "user", content: msg, image: attachedImage }, { role: "assistant", content: "", typing: true }]);
-    setAttachedImage(null);
+    setMessages((prev) => [...prev, { role: "user", content: msg, images: attachedImages }, { role: "assistant", content: "", typing: true }]);
+    setAttachedImages([]);
     try {
       const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
       const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -469,7 +469,7 @@ export default function App() {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: 16 }}>
-          {messages.map((msg, i) => (<Message key={i} role={msg.role} content={msg.content} typing={msg.typing} image={msg.image} />))}
+          {messages.map((msg, i) => (<Message key={i} role={msg.role} content={msg.content} typing={msg.typing} images={msg.images || (msg.image ? [msg.image] : null)} />))}
           {showChips && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
               {CHIPS.map((chip) => (
@@ -485,25 +485,29 @@ export default function App() {
         </div>
 
         <div style={{ padding: "16px 20px", background: "transparent", borderTop: "1px solid rgba(255,255,255,0.05)", flexShrink: 0, position: "relative", zIndex: 10 }}>
-          {attachedImage && (
-            <div style={{ marginBottom: 12, position: "relative", display: "inline-block" }}>
-              <img src={attachedImage} alt="Anexo" style={{ height: 64, borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", objectFit: "cover" }} />
-              <button onClick={() => setAttachedImage(null)} style={{ position: "absolute", top: -6, right: -6, background: "rgba(229,57,53,0.9)", backdropFilter: "blur(4px)", color: "white", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "50%", width: 22, height: 22, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>✕</button>
+          {attachedImages.length > 0 && (
+            <div style={{ display: "flex", gap: 10, overflowX: "auto", marginBottom: 12, paddingBottom: 6 }}>
+              {attachedImages.map((img, idx) => (
+                <div key={idx} style={{ position: "relative", flexShrink: 0 }}>
+                  <img src={img} alt="Anexo" style={{ height: 64, borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", objectFit: "cover" }} />
+                  <button onClick={() => setAttachedImages(prev => prev.filter((_, i) => i !== idx))} style={{ position: "absolute", top: -6, right: -6, background: "rgba(229,57,53,0.9)", backdropFilter: "blur(4px)", color: "white", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "50%", width: 22, height: 22, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>✕</button>
+                </div>
+              ))}
             </div>
           )}
           <div className="glass-input" style={{ display: "flex", alignItems: "flex-end", gap: 10, borderRadius: 16, padding: "10px 14px" }}>
             <button onClick={() => fileInputRef.current?.click()} style={{ background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 0 6px 0", color: "rgba(194,192,183,0.6)", transition: "color .2s" }} onMouseEnter={(e) => e.currentTarget.style.color = "#B2692A"} onMouseLeave={(e) => e.currentTarget.style.color = "rgba(194,192,183,0.6)"}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             </button>
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" style={{ display: "none" }} />
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" multiple style={{ display: "none" }} />
             <textarea ref={textareaRef} value={input}
               onChange={(e) => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
               onKeyDown={handleKey} onPaste={handlePaste} placeholder="Descreva a situação do lead..." rows={1}
               style={{ flex: 1, background: "transparent", border: "none", color: "#F0EDE8", fontSize: 14.5, fontFamily: "inherit", lineHeight: 1.5, minHeight: 22, maxHeight: 120 }} />
-            <button onClick={() => sendMessage()} disabled={loading || (!input.trim() && !attachedImage)}
-              className={loading || (!input.trim() && !attachedImage) ? "" : "caramelo-gradient"}
-              style={{ width: 34, height: 34, borderRadius: 10, background: loading || (!input.trim() && !attachedImage) ? "rgba(255,255,255,0.05)" : "", border: "none", cursor: loading || (!input.trim() && !attachedImage) ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s", boxShadow: loading || (!input.trim() && !attachedImage) ? "none" : "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 12px rgba(178,105,42,0.2)" }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill={loading || (!input.trim() && !attachedImage) ? "rgba(255,255,255,0.3)" : "white"}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            <button onClick={() => sendMessage()} disabled={loading || (!input.trim() && attachedImages.length === 0)}
+              className={loading || (!input.trim() && attachedImages.length === 0) ? "" : "caramelo-gradient"}
+              style={{ width: 34, height: 34, borderRadius: 10, background: loading || (!input.trim() && attachedImages.length === 0) ? "rgba(255,255,255,0.05)" : "", border: "none", cursor: loading || (!input.trim() && attachedImages.length === 0) ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s", boxShadow: loading || (!input.trim() && attachedImages.length === 0) ? "none" : "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 12px rgba(178,105,42,0.2)" }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill={loading || (!input.trim() && attachedImages.length === 0) ? "rgba(255,255,255,0.3)" : "white"}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
           </div>
         </div>
