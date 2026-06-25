@@ -130,6 +130,8 @@ PRINCÍPIOS DE ATENDIMENTO
    - "Vamos querer visitar" → fechar a data na hora, não deixar para depois
    - Sem resposta → aguardar 4 a 5 dias e encerrar com mensagem leve, mover para Nutrição
 
+9. PERGUNTAS ABERTAS E LINGUAGEM NATURAL: Sempre que o contexto permitir, evite encerrar mensagens com perguntas que possam ser respondidas com um simples "sim/não" (ex: "Você continua buscando espaço?"). Perguntas fechadas facilitam o "não" e travam o diálogo. Dê preferência a perguntas abertas que estimulem o lead a falar (ex: "Para eu entender melhor, o que te motivou a entrar em contato?" ou "O que você e a sua equipe estão buscando hoje?"). Atenção ao tom: Mantenha sempre um tom de conversa de WhatsApp de pessoa para pessoa. Nunca use linguagem muito engessada, performática ou que soe como um "roteiro de vendas artificial". O objetivo é conduzir um bom atendimento soando extremamente natural.
+
 ================================================================================
 MENSAGENS MODELO POR PRODUTO
 ================================================================================
